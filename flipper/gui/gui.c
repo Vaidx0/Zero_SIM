@@ -9,6 +9,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <math.h>
+#include <stdlib.h>
 #include <flippulator_defines.h>
 #include <termios.h>
 #ifndef M_PI
@@ -182,30 +183,21 @@ static void renderMessage(
 // TODO: multiple viewports support
 static void* handle_gui(void* _view_port) {
     ViewPort* view_port = _view_port;
+    const char* theme = getenv("ZERO_SIM_THEME");
+    const bool dark_theme = (theme != NULL && strcmp(theme, "dark") == 0);
+    const uint8_t bg_r = dark_theme ? 0x1f : 0xff;
+    const uint8_t bg_g = dark_theme ? 0x23 : 0x82;
+    const uint8_t bg_b = dark_theme ? 0x2a : 0x00;
+    const uint8_t fg_r = dark_theme ? 0xdc : 0x00;
+    const uint8_t fg_g = dark_theme ? 0xdf : 0x00;
+    const uint8_t fg_b = dark_theme ? 0xe4 : 0x00;
     while(running) {
         if(view_port->draw_callback != NULL)
             view_port->draw_callback(view_port->gui->canvas, view_port->draw_callback_context);
         
-        SDL_SetRenderDrawColor(renderer, 0xff, 0x82, 0x00, 0xff);
+        SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 0xff);
         SDL_RenderClear(renderer);
-        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xff);
-        
-        rect.x = 0;
-        rect.y = 320;
-        rect.w = 640;
-        rect.h = 3;
-        SDL_RenderDrawRect(renderer, &rect);
-        SDL_RenderFillRect(renderer, &rect);
-
-        char* msg_vibro = malloc(sizeof(char) * 11);
-        snprintf(msg_vibro, 11, "Vibro: %s", global_vibro_on ? "On" : "Off");
-        renderMessage(msg_vibro, 20, 340, 100);
-        char* msg_led = malloc(sizeof(char) * 13);
-        snprintf(msg_led, 13, "LED: #%02x%02x%02x", global_led[0], global_led[1], global_led[2]);
-        renderMessage(msg_led, 20, 380, 100);
-        char* msg_bl = malloc(sizeof(char) * 16);
-        snprintf(msg_bl, 16, "Backlight: 0x%02x", global_backlight_brightness);
-        renderMessage(msg_bl, 20, 420, 100);
+        SDL_SetRenderDrawColor(renderer, fg_r, fg_g, fg_b, 0xff);
 
         for(uint8_t x = 0; x < view_port->width / 8; x++) // Tile X
             for(uint8_t y = 0; y < view_port->height / 8; y++) // Tile Y
@@ -245,7 +237,7 @@ void gui_add_view_port(Gui* gui, ViewPort* view_port, GuiLayer layer) {
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Init(SDL_INIT_AUDIO);
-    SDL_CreateWindowAndRenderer(640, 480, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer(640, 320, 0, &window, &renderer);
     SDL_SetWindowTitle(window, FLIPPULATOR_APP_NAME);
 
     SDL_zero(audio_spec);

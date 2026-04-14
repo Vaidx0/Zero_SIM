@@ -69,6 +69,13 @@ def theme_styles(settings: dict) -> dict:
     }
 
 
+def clear_terminal() -> None:
+    # Rich clear is not always enough in WSL terminals.
+    console.clear()
+    os.system("cls" if os.name == "nt" else "clear")
+    print("\033[2J\033[H", end="")
+
+
 def clone_cleanup_once() -> None:
     if CLEAN_MARKER_FILE.exists():
         return
@@ -267,13 +274,15 @@ def cmd_run(args) -> None:
         raise FileNotFoundError(f"Binary not found for appid '{appid}'. Build first with: python simulator.py build <app_folder>")
     console.rule("[bold cyan]Run Simulator")
     console.print(f"[green]Launching:[/green] {bin_path}")
-    subprocess.run([str(bin_path)], cwd=ROOT, check=True)
+    run_env = os.environ.copy()
+    run_env["ZERO_SIM_THEME"] = load_settings().get("theme", "dark")
+    subprocess.run([str(bin_path)], cwd=ROOT, env=run_env, check=True)
 
 
 def interactive_menu() -> None:
     settings = load_settings()
     while True:
-        console.clear()
+        clear_terminal()
         styles = theme_styles(settings)
         table = Table(title="Zero_Sim Runner", header_style=styles["header"], border_style=styles["border"])
         table.add_column("Option", style=styles["option"], width=8)
