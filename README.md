@@ -19,10 +19,9 @@ Clean workflow for Zero_SIM with:
 
 ![Zero_SIM screenshot](assets/image.png)
 
-## Clone
+## Clone (WSL first)
 
-```bash
-git clone https://github.com/Vaidx0/Zero_SIM.git
+```bash\n# Open WSL terminal first\ngit clone https://github.com/Vaidx0/Zero_SIM.git
 cd Zero_SIM
 ```
 
@@ -103,6 +102,7 @@ Menu options:
     </td>
   </tr>
 </table>
+
 
 
 

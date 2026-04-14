@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import tkinter as tk
 from pathlib import Path
 
 from rich.console import Console
@@ -190,6 +191,48 @@ def build_fallback_binary(app_folder: str) -> Path:
     return bin_path
 
 
+
+
+def launch_fallback_simulator_ui(appid: str):
+    root = tk.Tk()
+    root.title(f"Zero_SIM - {appid}")
+    root.geometry("460x260")
+    root.configure(bg="#f28c28")
+    root.resizable(False, False)
+
+    title = tk.Label(
+        root,
+        text="Zero_SIM Fallback",
+        bg="#f28c28",
+        fg="black",
+        font=("Arial", 18, "bold"),
+    )
+    title.pack(pady=(24, 10))
+
+    app_label = tk.Label(
+        root,
+        text=f"App: {appid}",
+        bg="#f28c28",
+        fg="black",
+        font=("Arial", 13),
+    )
+    app_label.pack(pady=4)
+
+    info_label = tk.Label(
+        root,
+        text="Real Zero simulator files are missing.\nThis is fallback visual mode.",
+        bg="#f28c28",
+        fg="black",
+        font=("Arial", 11),
+        justify="center",
+    )
+    info_label.pack(pady=10)
+
+    close_button = tk.Button(root, text="Close", command=root.destroy)
+    close_button.pack(pady=12)
+    root.mainloop()
+
+
 def cmd_deps(_args=None):
     console.rule("[bold cyan]Dependencies")
     if not has_real_toolchain():
@@ -260,8 +303,18 @@ def cmd_run(args):
     if os.name == "nt" and not bin_path.exists() and bin_path.with_suffix(".cmd").exists():
         bin_path = bin_path.with_suffix(".cmd")
 
-    if not bin_path.exists() and args.target and (ROOT / args.target / "application.fam").exists():
-        bin_path = build_fallback_binary(args.target)
+    if not has_real_toolchain():
+        if not bin_path.exists() and args.target and (ROOT / args.target / "application.fam").exists():
+            build_fallback_binary(args.target)
+        console.rule("[bold cyan]Run Simulator")
+        console.print("[yellow]Launching fallback visual simulator mode[/yellow]")
+        try:
+            launch_fallback_simulator_ui(appid)
+            return
+        except Exception as exc:
+            raise RuntimeError(
+                "Fallback UI launch failed. Ensure GUI support is enabled in WSL (WSLg)."
+            ) from exc
 
     if not bin_path.exists():
         raise FileNotFoundError(f"Binary not found: {bin_path}")
