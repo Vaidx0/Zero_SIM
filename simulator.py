@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,8 +14,60 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-ROOT = Path(os.environ.get("ZERO_SIM_ROOT", str(SCRIPT_DIR))).resolve()
+ENV_ROOT = os.environ.get("ZERO_SIM_ROOT", "").strip()
+if ENV_ROOT and Path(ENV_ROOT).exists():
+    ROOT = Path(ENV_ROOT).resolve()
+else:
+    ROOT = SCRIPT_DIR
+
+SETTINGS_FILE = ROOT / ".zero_sim_settings.json"
+CLEAN_MARKER_FILE = ROOT / ".zero_sim_cleaned"
+DEFAULT_SETTINGS = {"theme": "dark"}
 console = Console()
+
+
+def load_settings():
+    if not SETTINGS_FILE.exists():
+        return dict(DEFAULT_SETTINGS)
+    try:
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return dict(DEFAULT_SETTINGS)
+        merged = dict(DEFAULT_SETTINGS)
+        merged.update({k: v for k, v in data.items() if k in DEFAULT_SETTINGS})
+        return merged
+    except Exception:
+        return dict(DEFAULT_SETTINGS)
+
+
+def save_settings(settings):
+    SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+
+def theme_styles(settings):
+    if settings.get("theme", "dark") == "light":
+        return {"header": "bold blue", "option": "blue", "action": "black"}
+    return {"header": "bold magenta", "option": "cyan", "action": "white"}
+
+
+def initial_clone_cleanup():
+    if CLEAN_MARKER_FILE.exists():
+        return
+    targets = [ROOT / "assets", ROOT / "LICENSE", ROOT / ".gitignore"]
+    removed = []
+    for target in targets:
+        try:
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+                removed.append(target.name)
+            elif target.is_file():
+                target.unlink(missing_ok=True)
+                removed.append(target.name)
+        except Exception:
+            pass
+    CLEAN_MARKER_FILE.write_text("cleaned\n", encoding="utf-8")
+    if removed:
+        console.print(f"[yellow]Initial cleanup done:[/yellow] {', '.join(removed)}")
 
 
 def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
@@ -80,10 +134,25 @@ def missing_apt_packages(packages):
     return missing
 
 
+def ensure_unix_dependencies_tooling():
+    for tool in ("dpkg", "apt-get", "sudo"):
+        if shutil.which(tool) is None:
+            raise RuntimeError(
+                "Linux dependency tools are not available in this shell. "
+                "Run this command from WSL/Linux terminal, or skip with build/run only."
+            )
+
+
 def cmd_deps(_args=None):
     console.rule("[bold cyan]Dependencies")
+    if not (ROOT / "package.json").exists():
+        raise FileNotFoundError(
+            f"package.json not found in {ROOT}. Make sure ZERO_SIM_ROOT is correct or run from the cloned repo folder."
+        )
+
     run_step("Updating git submodules", ["git", "submodule", "update", "--init", "--recursive"], quiet=True)
     run_step("Installing npm packages", ["npm", "install"], quiet=True)
+    ensure_unix_dependencies_tooling()
 
     apt_pkgs = [
         "build-essential",
@@ -164,24 +233,27 @@ def cmd_run(args):
 
 
 def interactive_menu():
+    settings = load_settings()
     while True:
         console.clear()
-        table = Table(title="Zero_Sim Runner", header_style="bold magenta")
-        table.add_column("Option", style="cyan", width=8)
-        table.add_column("Action", style="white")
+        styles = theme_styles(settings)
+        table = Table(title="Zero_Sim Runner", header_style=styles["header"])
+        table.add_column("Option", style=styles["option"], width=8)
+        table.add_column("Action", style=styles["action"])
         table.add_row("1", "Install dependencies")
         table.add_row("2", "Build an app")
         table.add_row("3", "Run simulator")
-        table.add_row("4", "Quit")
+        table.add_row("4", "Settings")
+        table.add_row("5", "Quit")
         console.print(table)
 
-        choice = Prompt.ask("Select", choices=["1", "2", "3", "4"], default="3")
+        choice = Prompt.ask("Select", choices=["1", "2", "3", "4", "5"], default="3")
         try:
             if choice == "1":
                 cmd_deps(None)
                 Prompt.ask("Press Enter to continue")
             elif choice == "2":
-                app = Prompt.ask("App folder", default="my_image_viewer").strip()
+                app = Prompt.ask("App folder", default="example_hello_world").strip()
                 class Args:
                     pass
                 args = Args()
@@ -196,6 +268,12 @@ def interactive_menu():
                 args.target = target
                 cmd_run(args)
                 return
+            elif choice == "4":
+                selected = Prompt.ask("Theme", choices=["dark", "light"], default=settings.get("theme", "dark"))
+                settings["theme"] = selected
+                save_settings(settings)
+                console.print(f"[green]Theme set to {selected}.[/green]")
+                Prompt.ask("Press Enter to continue")
             else:
                 console.print("Bye")
                 return
@@ -205,6 +283,8 @@ def interactive_menu():
 
 
 def main():
+    initial_clone_cleanup()
+
     if len(os.sys.argv) == 1:
         interactive_menu()
         return

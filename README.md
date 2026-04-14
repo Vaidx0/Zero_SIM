@@ -1,23 +1,17 @@
-# Zero_Sim Toolkit by Amau_Zero
+# Zero_SIM Toolkit by Amau_Zero
 
-Website: [amauzero.info](https://amauzero.info)
-
-A clean helper workflow for Zero_Sim with:
+Clean workflow for Zero_SIM with:
 - dependency bootstrap
 - quiet app build (logs shown only on error)
 - one-command simulator launch
-- rich terminal UI
+- interactive menu with a Settings mode
 
 ## Requirements
 
-- Windows with WSL installed
-- Python 3 available (`python` or `py -3` on Windows)
-- Git installed
-- Node.js + npm installed
-
-## Screenshot
-
-![Zero_Sim screenshot](assets/image.png)
+- Windows + WSL (recommended for Linux dependencies)
+- Python 3 (`python` or `py -3` on Windows)
+- Git
+- Node.js + npm
 
 ## Clone
 
@@ -26,17 +20,25 @@ git clone https://github.com/Vaidx0/Zero_SIM.git
 cd Zero_SIM
 ```
 
-## First Create an App Folder
+## Important First Step
 
-Before building, create an app folder in the repository root and add an `application.fam` file.
+Create or use an app folder before building.
 
-Example:
+An example app is already included:
+- `example_hello_world`
 
-```bash
-mkdir my_image_viewer
-```
+You can also create your own app folder in the repository root and include an `application.fam`.
 
-## Setup Zero_Sim
+## First Run Behavior
+
+On first launch, `simulator.py` performs an initial cleanup as requested:
+- removes `assets/`
+- removes `LICENSE`
+- removes `.gitignore`
+
+This is done once and tracked by `.zero_sim_cleaned`.
+
+## Dependency Setup
 
 Run from the repository folder (where `simulator.py` is located):
 
@@ -44,24 +46,24 @@ Run from the repository folder (where `simulator.py` is located):
 python simulator.py deps
 ```
 
-If `python` is not available on your machine, use:
+If `python` is not available:
 
 ```bash
 py -3 simulator.py deps
 ```
 
-This command checks and installs missing dependencies automatically.
+Do not use `python3` on standard Windows PowerShell unless you explicitly installed that alias.
 
 ## Build an App
 
 ```bash
-python simulator.py build my_image_viewer
+python simulator.py build example_hello_world
 ```
 
 ## Run the Simulator
 
 ```bash
-python simulator.py run my_image_viewer
+python simulator.py run example_hello_world
 ```
 
 ## Interactive Mode
@@ -70,7 +72,13 @@ python simulator.py run my_image_viewer
 python simulator.py
 ```
 
-## Keyboard Controls (Zero_Sim)
+Menu options:
+- install dependencies
+- build app
+- run simulator
+- settings (switch theme: dark/light)
+
+## Keyboard Controls (Zero_SIM)
 
 - Up: `Arrow Up`
 - Down: `Arrow Down`
@@ -81,9 +89,9 @@ python simulator.py
 
 ## Notes
 
-- Build output is intentionally hidden unless a build step fails.
-- If dependency installation asks for sudo, enter your WSL password.
-- ALSA warnings can appear on machines without an audio device and are usually harmless.
+- The script now validates repo path resolution and avoids invalid-directory failures when the clone folder is moved.
+- Linux dependency tools (`dpkg`, `apt-get`, `sudo`) must run in WSL/Linux shell.
+- Build logs stay hidden unless a step fails.
 
 ## Author
 
