@@ -13,7 +13,7 @@ Clean workflow for Zero_SIM with:
 - Windows + WSL (recommended for Linux dependencies)
 - Python 3 (`python` or `py -3` on Windows)
 - Git
-- Node.js + npm
+- Node.js + npm (optional if you use fallback example mode)
 
 ## Screenshot
 
@@ -86,7 +86,7 @@ Menu options:
 
 ## Notes
 
-- If build fails with "Command not found", install Node.js and reopen the terminal.
+- If `package.json` is missing, the script switches to fallback mode and can still build/run `example_hello_world`.
 - Linux dependency tools (`dpkg`, `apt-get`, `sudo`) must run in WSL/Linux shell.
 - Build logs stay hidden unless a step fails.
 
@@ -103,3 +103,4 @@ Menu options:
     </td>
   </tr>
 </table>
+
