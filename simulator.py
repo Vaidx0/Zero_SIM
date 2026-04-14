@@ -79,8 +79,6 @@ def clone_cleanup():
             pass
 
     CLEAN_MARKER_FILE.write_text("cleaned\n", encoding="utf-8")
-    if removed:
-        console.print(f"[yellow]Clone cleanup done:[/yellow] {', '.join(removed)}")
 
 
 def has_real_toolchain() -> bool:
