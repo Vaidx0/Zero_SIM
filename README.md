@@ -5,6 +5,7 @@ Full Flipper simulator workflow wrapped by `simulator.py`.
 ## Screenshot
 
 ![Zero_SIM screenshot](assets/image.png)
+![Zero_SIM screenshot 2](assets/image-2.png)
 
 ## Setup (WSL first)
 
@@ -27,10 +28,10 @@ Run everything through the Python runner:
 python simulator.py
 ```
 
-Menu flow:
-1. Install dependencies
-2. Build an app
-3. Run simulator
+Menu flow (mandatory order in GUI):
+1. Click **Dependencies** first
+2. Then click **Build**
+3. Then click **Run**
 4. Settings (dark/light)
 
 ## Direct commands (optional)
@@ -42,6 +43,9 @@ python simulator.py run example_hello_world
 ```
 
 ## Notes
+
+- **Sudo is required** for dependency installation/build steps in WSL/Linux (`sudo` must be available).
+- In GUI, follow this order only: **Dependencies -> Build -> Run**.
 
 - The script now prints build output when binary generation fails.
 - If build fails, it automatically retries once in verbose mode to show compiler errors.

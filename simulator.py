@@ -394,6 +394,8 @@ class ZeroSimApp(tk.Tk):
         self._log_queue: queue.Queue[str] = queue.Queue()
         self._runner     = TaskRunner(self._log_queue)
         self._busy       = False
+        self._deps_completed = False
+        self._build_completed = False
 
         self._build_ui()
         self._poll_log()
@@ -435,9 +437,9 @@ class ZeroSimApp(tk.Tk):
 
         # action buttons
         btn_defs = [
-            ("⬇  Dependencies", self._action_deps,   C["surface2"],  C["fg"]),
-            ("⚙  Build",        self._action_build,  C["accent"],    C["accent_text"]),
-            ("▶  Run",          self._action_run,    C["accent"],    C["accent_text"]),
+            ("1) ⬇  Dependencies", self._action_deps,   C["surface2"],  C["fg"]),
+            ("2) ⚙  Build",        self._action_build,  C["accent"],    C["accent_text"]),
+            ("3) ▶  Run",          self._action_run,    C["accent"],    C["accent_text"]),
         ]
         self._action_btns = []
         for label, cmd, bg, fg in btn_defs:
@@ -656,20 +658,38 @@ class ZeroSimApp(tk.Tk):
     # ── actions ───────────────────────────────────────────────────────────────
 
     def _action_deps(self):
-        self._run_task("Installing dependencies…",
-                       self._runner.task_deps)
+        def _deps_task():
+            self._runner.task_deps()
+            self._deps_completed = True
+            self._build_completed = False
+        self._run_task("Installing dependencies…", _deps_task)
 
     def _action_build(self):
+        if not self._deps_completed:
+            messagebox.showwarning("Required order", "You must click Dependencies first.")
+            return
         app = simpledialog.askstring("Build",
                                      "App folder name:",
                                      initialvalue="example_hello_world",
                                      parent=self)
         if not app:
             return
-        self._run_task(f"Building {app}…",
-                       lambda: self._runner.task_build(app.strip()))
+
+        app_name = app.strip()
+
+        def _build_task():
+            self._runner.task_build(app_name)
+            self._build_completed = True
+
+        self._run_task(f"Building {app_name}…", _build_task)
 
     def _action_run(self):
+        if not self._deps_completed:
+            messagebox.showwarning("Required order", "You must click Dependencies first.")
+            return
+        if not self._build_completed:
+            messagebox.showwarning("Required order", "You must click Build before Run.")
+            return
         last = detect_last_built_appid() or ""
         target = simpledialog.askstring("Run",
                                         "App id or folder (empty = last build):",
