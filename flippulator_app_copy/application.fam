@@ -1,0 +1,11 @@
+App(
+    appid="example_hello_world",
+    name="Hello World",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="example_hello_world_main",
+    cdefines=["APP_HELLO_WORLD"],
+    requires=["gui"],
+    stack_size=2 * 1024,
+    order=10,
+    fap_category="Examples",
+)
