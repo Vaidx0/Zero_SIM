@@ -11,7 +11,8 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.prompt import Prompt
 from rich.table import Table
 
-ROOT = Path.home() / "Zero_Sim"
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get("ZERO_SIM_ROOT", str(SCRIPT_DIR))).resolve()
 console = Console()
 
 
