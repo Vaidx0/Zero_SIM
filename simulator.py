@@ -4,21 +4,19 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.prompt import Prompt
 from rich.table import Table
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ENV_ROOT = os.environ.get("ZERO_SIM_ROOT", "").strip()
-if ENV_ROOT and Path(ENV_ROOT).exists():
-    ROOT = Path(ENV_ROOT).resolve()
-else:
-    ROOT = SCRIPT_DIR
+ROOT = Path(ENV_ROOT).resolve() if ENV_ROOT and Path(ENV_ROOT).exists() else SCRIPT_DIR
 
 SETTINGS_FILE = ROOT / ".zero_sim_settings.json"
 CLEAN_MARKER_FILE = ROOT / ".zero_sim_cleaned"
@@ -26,66 +24,66 @@ DEFAULT_SETTINGS = {"theme": "dark"}
 console = Console()
 
 
-def npm_command():
+def npm_command() -> list[str]:
     if os.name == "nt":
-        npm_cmd = shutil.which("npm.cmd")
-        if npm_cmd:
-            return [npm_cmd]
-    npm = shutil.which("npm")
-    if npm:
-        return [npm]
-    raise RuntimeError("npm is not available in PATH. Install Node.js and reopen your terminal.")
+        cmd = shutil.which("npm.cmd")
+        if cmd:
+            return [cmd]
+    cmd = shutil.which("npm")
+    if cmd:
+        return [cmd]
+    raise RuntimeError("npm not found in PATH. Install Node.js and reopen terminal.")
 
 
-def load_settings():
+def load_settings() -> dict:
     if not SETTINGS_FILE.exists():
         return dict(DEFAULT_SETTINGS)
     try:
         data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return dict(DEFAULT_SETTINGS)
-        merged = dict(DEFAULT_SETTINGS)
-        merged.update({k: v for k, v in data.items() if k in DEFAULT_SETTINGS})
-        return merged
     except Exception:
         return dict(DEFAULT_SETTINGS)
+    if not isinstance(data, dict):
+        return dict(DEFAULT_SETTINGS)
+    merged = dict(DEFAULT_SETTINGS)
+    merged.update({k: v for k, v in data.items() if k in DEFAULT_SETTINGS})
+    return merged
 
 
-def save_settings(settings):
+def save_settings(settings: dict) -> None:
     SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
 
-def theme_styles(settings):
+def theme_styles(settings: dict) -> dict:
     if settings.get("theme", "dark") == "light":
-        return {"header": "bold blue", "option": "blue", "action": "black"}
-    return {"header": "bold magenta", "option": "cyan", "action": "white"}
+        return {
+            "header": "bold #1f2937",
+            "option": "#374151",
+            "action": "#111827",
+            "border": "#9ca3af",
+        }
+    return {
+        "header": "bold #d1d5db",
+        "option": "#9ca3af",
+        "action": "#e5e7eb",
+        "border": "#6b7280",
+    }
 
 
-def clone_cleanup():
+def clone_cleanup_once() -> None:
     if CLEAN_MARKER_FILE.exists():
         return
-
-    targets = [ROOT / "assets", ROOT / "LICENSE", ROOT / ".gitignore"]
-    removed = []
-    for target in targets:
+    for target in (ROOT / "assets", ROOT / "LICENSE", ROOT / ".gitignore"):
         try:
             if target.is_dir():
                 shutil.rmtree(target, ignore_errors=True)
-                removed.append(target.name)
-            elif target.is_file():
+            elif target.exists():
                 target.unlink(missing_ok=True)
-                removed.append(target.name)
         except Exception:
             pass
-
     CLEAN_MARKER_FILE.write_text("cleaned\n", encoding="utf-8")
 
 
-def has_real_toolchain() -> bool:
-    return (ROOT / "package.json").exists()
-
-
-def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
+def run_step(title: str, cmd: list[str], quiet: bool = True, input_text: str | None = None) -> subprocess.CompletedProcess:
     if quiet:
         with Progress(
             SpinnerColumn(),
@@ -96,32 +94,34 @@ def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
             transient=True,
         ) as progress:
             task = progress.add_task(title, total=None)
-            try:
-                completed = subprocess.run(
-                    cmd,
-                    cwd=cwd or ROOT,
-                    input=input_text,
-                    text=True,
-                    capture_output=True,
-                )
-            except FileNotFoundError as exc:
-                raise RuntimeError(f"Command not found: {cmd[0]}. Install it and check your PATH.") from exc
-            progress.update(task, completed=1)
-        if completed.returncode != 0:
-            output = (completed.stdout or "") + "\n" + (completed.stderr or "")
-            console.print(
-                Panel(
-                    output.strip() or "No command output",
-                    title=f"Failed: {' '.join(cmd)}",
-                    border_style="red",
-                )
+            completed = subprocess.run(
+                cmd,
+                cwd=ROOT,
+                input=input_text,
+                text=True,
+                capture_output=True,
             )
-            raise subprocess.CalledProcessError(completed.returncode, cmd)
-        return completed
+            progress.update(task, completed=1)
+    else:
+        console.print(f"[cyan]$ {' '.join(cmd)}[/cyan]")
+        completed = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            input=input_text,
+            text=True,
+            capture_output=True,
+        )
+        if completed.stdout:
+            console.print(completed.stdout.rstrip())
+        if completed.stderr:
+            console.print(completed.stderr.rstrip())
 
-    console.print(f"[cyan]$ {' '.join(cmd)}[/cyan]")
-    subprocess.run(cmd, cwd=cwd or ROOT, check=True)
-    return None
+    if completed.returncode != 0:
+        output = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip() or "No command output"
+        console.print(Panel(output, title=f"Failed: {' '.join(cmd)}", border_style="red"))
+        raise RuntimeError(f"Command failed with exit code {completed.returncode}: {' '.join(cmd)}")
+
+    return completed
 
 
 def parse_appid(app_folder: str) -> str:
@@ -135,18 +135,43 @@ def parse_appid(app_folder: str) -> str:
     return match.group(1)
 
 
+def _is_executable_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    if path.suffix.lower() in {".ttf", ".txt", ".json", ".o", ".a"}:
+        return False
+    if os.name == "nt":
+        return path.suffix.lower() in {".exe", ".cmd", ".bat"} or path.name == path.stem
+    mode = path.stat().st_mode
+    return bool(mode & stat.S_IXUSR)
+
+
+def locate_built_binary(appid: str) -> Path | None:
+    out_dir = ROOT / f"out_{appid}"
+    if not out_dir.exists():
+        return None
+    preferred = out_dir / appid
+    if preferred.exists() and _is_executable_file(preferred):
+        return preferred
+    if os.name == "nt":
+        preferred_cmd = preferred.with_suffix(".cmd")
+        if preferred_cmd.exists():
+            return preferred_cmd
+    for candidate in out_dir.iterdir():
+        if _is_executable_file(candidate):
+            return candidate
+    return None
+
+
 def detect_last_built_appid() -> str | None:
-    outs = sorted([p for p in ROOT.glob("out_*") if p.is_dir()])
-    for directory in reversed(outs):
+    for directory in sorted((p for p in ROOT.glob("out_*") if p.is_dir()), reverse=True):
         appid = directory.name.replace("out_", "", 1)
-        candidate = directory / appid
-        candidate_cmd = candidate.with_suffix(".cmd")
-        if candidate.exists() or candidate_cmd.exists():
+        if locate_built_binary(appid):
             return appid
     return None
 
 
-def missing_apt_packages(packages):
+def missing_apt_packages(packages: list[str]) -> list[str]:
     missing = []
     for pkg in packages:
         result = subprocess.run(["dpkg", "-s", pkg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -155,74 +180,16 @@ def missing_apt_packages(packages):
     return missing
 
 
-def ensure_unix_dependencies_tooling():
+def ensure_unix_dependencies_tooling() -> None:
     for tool in ("dpkg", "apt-get", "sudo"):
         if shutil.which(tool) is None:
-            raise RuntimeError(
-                "Linux dependency tools are not available in this shell. "
-                "Run this command from WSL/Linux terminal, or skip with build/run only."
-            )
+            raise RuntimeError("Linux dependency tools missing. Run from WSL/Linux terminal.")
 
 
-def build_fallback_binary(app_folder: str) -> Path:
-    appid = parse_appid(app_folder)
-    out_dir = ROOT / f"out_{appid}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    bin_path = out_dir / appid
-
-    if os.name == "nt":
-        bin_path = bin_path.with_suffix(".cmd")
-        content = (
-            "@echo off\n"
-            f"echo Running fallback simulator app: {appid}\n"
-            f"echo Hello from {app_folder}\n"
-        )
-    else:
-        content = (
-            "#!/usr/bin/env sh\n"
-            f"echo \"Running fallback simulator app: {appid}\"\n"
-            f"echo \"Hello from {app_folder}\"\n"
-        )
-
-    bin_path.write_text(content, encoding="utf-8")
-    if os.name != "nt":
-        bin_path.chmod(0o755)
-    return bin_path
-
-
-
-
-def launch_fallback_simulator_ui(appid: str):
-    try:
-        import tkinter as tk
-    except ModuleNotFoundError:
-        console.print("[yellow]tkinter is not installed. Install python3-tk for visual fallback mode.[/yellow]")
-        console.print(f"[cyan]Fallback app output:[/cyan] Running fallback simulator app: {appid}")
-        return
-
-    root = tk.Tk()
-    root.title(f"Zero_SIM - {appid}")
-    root.geometry("460x260")
-    root.configure(bg="#f28c28")
-    root.resizable(False, False)
-
-    title = tk.Label(root, text="Zero_SIM Fallback", bg="#f28c28", fg="black", font=("Arial", 18, "bold"))
-    title.pack(pady=(24, 10))
-    app_label = tk.Label(root, text=f"App: {appid}", bg="#f28c28", fg="black", font=("Arial", 13))
-    app_label.pack(pady=4)
-    info_label = tk.Label(root, text="Real Zero simulator files are missing.\nThis is fallback visual mode.", bg="#f28c28", fg="black", font=("Arial", 11), justify="center")
-    info_label.pack(pady=10)
-    close_button = tk.Button(root, text="Close", command=root.destroy)
-    close_button.pack(pady=12)
-    root.mainloop()
-
-
-def cmd_deps(_args=None):
+def cmd_deps(_args=None) -> None:
     console.rule("[bold cyan]Dependencies")
-    if not has_real_toolchain():
-        console.print("[yellow]No package.json found. Running in fallback mode (example apps only).[/yellow]")
-        console.print("[bold green]Dependencies ready.[/bold green]")
-        return
+    if not (ROOT / "package.json").exists():
+        raise FileNotFoundError(f"package.json not found in {ROOT}. Repository seems incomplete.")
 
     run_step("Updating git submodules", ["git", "submodule", "update", "--init", "--recursive"], quiet=True)
     run_step("Installing npm packages", [*npm_command(), "install"], quiet=True)
@@ -244,26 +211,31 @@ def cmd_deps(_args=None):
     console.print("[bold green]Dependencies ready.[/bold green]")
 
 
-def cmd_build(args):
+def cmd_build(args) -> None:
     app_folder = args.app
     app_path = ROOT / app_folder
     if not app_path.exists():
         raise FileNotFoundError(f"App folder not found: {app_path}")
 
-    console.rule(f"[bold cyan]Build {app_folder}")
-    if not has_real_toolchain():
-        out_bin = build_fallback_binary(app_folder)
-        console.print(f"[bold green]Fallback build complete[/bold green]: {out_bin}")
-        return
-
-    run_step("Compiling app", [*npm_command(), "start"], input_text=f"{app_folder}\n", quiet=True)
-
     appid = parse_appid(app_folder)
-    out_bin = ROOT / f"out_{appid}" / appid
-    if not out_bin.exists() and out_bin.with_suffix(".cmd").exists():
-        out_bin = out_bin.with_suffix(".cmd")
-    if not out_bin.exists():
-        raise FileNotFoundError(f"Build finished but binary not found: {out_bin}")
+    console.rule(f"[bold cyan]Build {app_folder}")
+    completed = run_step("Compiling app", [*npm_command(), "start"], quiet=True, input_text=f"{app_folder}\n")
+
+    out_bin = locate_built_binary(appid)
+    if not out_bin:
+        build_log = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip()
+        if build_log:
+            console.print(Panel(build_log, title="Build output", border_style="yellow"))
+        # Retry once in verbose mode to expose full compiler errors.
+        console.print("[yellow]Binary missing after build, retrying with verbose logs...[/yellow]")
+        run_step("Compiling app (verbose)", [*npm_command(), "start"], quiet=False, input_text=f"{app_folder}\n")
+        out_bin = locate_built_binary(appid)
+
+    if not out_bin:
+        raise FileNotFoundError(
+            f"Build finished but binary not found in out_{appid}. Check the build logs above for compile errors."
+        )
+
     console.print(f"[bold green]Build complete[/bold green]: {out_bin}")
 
 
@@ -281,39 +253,22 @@ def resolve_appid(target: str | None) -> str:
     return target
 
 
-def cmd_run(args):
+def cmd_run(args) -> None:
     appid = resolve_appid(args.target)
-    bin_path = ROOT / f"out_{appid}" / appid
-    if os.name == "nt" and not bin_path.exists() and bin_path.with_suffix(".cmd").exists():
-        bin_path = bin_path.with_suffix(".cmd")
-
-    if not has_real_toolchain():
-        if not bin_path.exists() and args.target and (ROOT / args.target / "application.fam").exists():
-            build_fallback_binary(args.target)
-        console.rule("[bold cyan]Run Simulator")
-        console.print("[yellow]Launching fallback visual simulator mode[/yellow]")
-        try:
-            launch_fallback_simulator_ui(appid)
-            return
-        except Exception as exc:
-            raise RuntimeError(
-                "Fallback UI launch failed. Ensure GUI support is enabled in WSL (WSLg)."
-            ) from exc
-
-    if not bin_path.exists():
-        raise FileNotFoundError(f"Binary not found: {bin_path}")
-
+    bin_path = locate_built_binary(appid)
+    if not bin_path:
+        raise FileNotFoundError(f"Binary not found for appid '{appid}'. Build first with: python simulator.py build <app_folder>")
     console.rule("[bold cyan]Run Simulator")
     console.print(f"[green]Launching:[/green] {bin_path}")
-    subprocess.run([str(bin_path)], check=True)
+    subprocess.run([str(bin_path)], cwd=ROOT, check=True)
 
 
-def interactive_menu():
+def interactive_menu() -> None:
     settings = load_settings()
     while True:
         console.clear()
         styles = theme_styles(settings)
-        table = Table(title="Zero_Sim Runner", header_style=styles["header"])
+        table = Table(title="Zero_Sim Runner", header_style=styles["header"], border_style=styles["border"])
         table.add_column("Option", style=styles["option"], width=8)
         table.add_column("Action", style=styles["action"])
         table.add_row("1", "Install dependencies")
@@ -327,43 +282,34 @@ def interactive_menu():
         try:
             if choice == "1":
                 cmd_deps(None)
-                Prompt.ask("Press Enter to continue")
             elif choice == "2":
                 app = Prompt.ask("App folder", default="example_hello_world").strip()
-
-                class Args:
-                    pass
-
+                class Args: pass
                 args = Args()
                 args.app = app
                 cmd_build(args)
-                Prompt.ask("Press Enter to continue")
             elif choice == "3":
                 target = Prompt.ask("App id or folder (empty=last build)", default="").strip() or None
-
-                class Args:
-                    pass
-
+                class Args: pass
                 args = Args()
                 args.target = target
                 cmd_run(args)
-                Prompt.ask("Press Enter to continue")
             elif choice == "4":
                 selected = Prompt.ask("Theme", choices=["dark", "light"], default=settings.get("theme", "dark"))
                 settings["theme"] = selected
                 save_settings(settings)
                 console.print(f"[green]Theme set to {selected}.[/green]")
-                Prompt.ask("Press Enter to continue")
             else:
                 console.print("Bye")
                 return
+            Prompt.ask("Press Enter to continue")
         except Exception as exc:
             console.print(Panel(str(exc), title="Error", border_style="red"))
             Prompt.ask("Press Enter to continue")
 
 
-def main():
-    clone_cleanup()
+def main() -> None:
+    clone_cleanup_once()
 
     if len(os.sys.argv) == 1:
         interactive_menu()

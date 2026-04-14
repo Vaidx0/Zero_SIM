@@ -1,12 +1,12 @@
 # Zero_SIM by Amau_Zero
 
-Full Flipper Zero simulator integration based on the `flippulator` engine.
+Full Flipper simulator workflow wrapped by `simulator.py`.
 
 ## Screenshot
 
 ![Zero_SIM screenshot](assets/image.png)
 
-## Clone (WSL first)
+## Setup (WSL first)
 
 ```bash
 # 1) Open WSL terminal first
@@ -14,34 +14,38 @@ Full Flipper Zero simulator integration based on the `flippulator` engine.
 mkdir -p ~/zero_workspace
 cd ~/zero_workspace
 
-# 3) Clone and enter the repository
+# 3) Clone and enter repository
 git clone https://github.com/Vaidx0/Zero_SIM.git
 cd Zero_SIM
 ```
 
-## Requirements
+## Use only simulator.py
 
-- Linux / WSL environment
-- `make`
-- `gcc`
-- `libsdl2-dev:i386`
-- `gcc-12-multilib` (or a compatible multilib GCC package)
-- `libbsd-dev:i386`
-- `nodejs` + `npm`
-
-## Usage
+Run everything through the Python runner:
 
 ```bash
-npm install
-npm start
+python simulator.py
 ```
 
-This generates the simulator executable in `out_<app name>/<app name>`.
+Menu flow:
+1. Install dependencies
+2. Build an app
+3. Run simulator
+4. Settings (dark/light)
+
+## Direct commands (optional)
+
+```bash
+python simulator.py deps
+python simulator.py build example_hello_world
+python simulator.py run example_hello_world
+```
 
 ## Notes
 
-- This project is based on the original `flippulator` architecture and adapted for `Zero_SIM`.
-- It compiles Flipper apps for desktop simulation.
+- The script now prints build output when binary generation fails.
+- If build fails, it automatically retries once in verbose mode to show compiler errors.
+- Do not run `npm start` directly; use `simulator.py` only.
 
 ## Author
 
