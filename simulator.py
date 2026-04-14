@@ -198,12 +198,14 @@ def cmd_deps(_args=None) -> None:
     apt_pkgs = [
         "build-essential", "gcc", "g++", "make", "pkg-config", "jq", "git", "curl", "ca-certificates",
         "nodejs", "npm", "python3", "python3-pip", "python3-rich", "libsdl2-dev", "libsdl2-ttf-dev",
-        "libsdl2-image-dev", "libsdl2-mixer-dev", "libbsd-dev", "gdb", "x11-apps",
+        "libsdl2-image-dev", "libsdl2-mixer-dev", "libbsd-dev", "libbsd-dev:i386", "gcc-multilib", "g++-multilib", "gdb", "x11-apps",
     ]
+    run_step("Enable i386 architecture", ["sudo", "dpkg", "--add-architecture", "i386"], quiet=False)
+    run_step("Running apt update", ["sudo", "apt-get", "update"], quiet=False)
+
     missing = missing_apt_packages(apt_pkgs)
     if missing:
         console.print(f"[yellow]Missing apt packages ({len(missing)}):[/yellow] {' '.join(missing)}")
-        run_step("Running apt update", ["sudo", "apt-get", "update"], quiet=False)
         run_step("Installing missing apt packages", ["sudo", "apt-get", "install", "-y", *missing], quiet=False)
     else:
         console.print("[green]All required apt packages are already installed.[/green]")
@@ -225,7 +227,12 @@ def cmd_build(args) -> None:
     if not out_bin:
         build_log = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip()
         if build_log:
+            lines = build_log.splitlines()
+            if len(lines) > 120:
+                build_log = "\n".join(lines[-120:])
             console.print(Panel(build_log, title="Build output", border_style="yellow"))
+        if "cannot find -lbsd" in build_log:
+            raise RuntimeError("Missing 32-bit libbsd during link. Run: python simulator.py deps (in WSL)")
         # Retry once in verbose mode to expose full compiler errors.
         console.print("[yellow]Binary missing after build, retrying with verbose logs...[/yellow]")
         run_step("Compiling app (verbose)", [*npm_command(), "start"], quiet=False, input_text=f"{app_folder}\n")
