@@ -34,9 +34,7 @@ def npm_command():
     npm = shutil.which("npm")
     if npm:
         return [npm]
-    raise RuntimeError(
-        "npm is not available in PATH. Install Node.js and reopen your terminal."
-    )
+    raise RuntimeError("npm is not available in PATH. Install Node.js and reopen your terminal.")
 
 
 def load_settings():
@@ -63,9 +61,10 @@ def theme_styles(settings):
     return {"header": "bold magenta", "option": "cyan", "action": "white"}
 
 
-def initial_clone_cleanup():
+def clone_cleanup():
     if CLEAN_MARKER_FILE.exists():
         return
+
     targets = [ROOT / "assets", ROOT / "LICENSE", ROOT / ".gitignore"]
     removed = []
     for target in targets:
@@ -78,9 +77,14 @@ def initial_clone_cleanup():
                 removed.append(target.name)
         except Exception:
             pass
+
     CLEAN_MARKER_FILE.write_text("cleaned\n", encoding="utf-8")
     if removed:
-        console.print(f"[yellow]Initial cleanup done:[/yellow] {', '.join(removed)}")
+        console.print(f"[yellow]Clone cleanup done:[/yellow] {', '.join(removed)}")
+
+
+def has_real_toolchain() -> bool:
+    return (ROOT / "package.json").exists()
 
 
 def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
@@ -103,9 +107,7 @@ def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
                     capture_output=True,
                 )
             except FileNotFoundError as exc:
-                raise RuntimeError(
-                    f"Command not found: {cmd[0]}. Install it and check your PATH."
-                ) from exc
+                raise RuntimeError(f"Command not found: {cmd[0]}. Install it and check your PATH.") from exc
             progress.update(task, completed=1)
         if completed.returncode != 0:
             output = (completed.stdout or "") + "\n" + (completed.stderr or "")
@@ -118,31 +120,11 @@ def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
             )
             raise subprocess.CalledProcessError(completed.returncode, cmd)
         return completed
+
     console.print(f"[cyan]$ {' '.join(cmd)}[/cyan]")
     subprocess.run(cmd, cwd=cwd or ROOT, check=True)
     return None
 
-
-
-
-def has_real_toolchain() -> bool:
-    return (ROOT / "package.json").exists()
-
-
-def build_fallback_binary(app_folder: str) -> Path:
-    appid = parse_appid(app_folder)
-    out_dir = ROOT / f"out_{appid}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    bin_path = out_dir / appid
-    if os.name == "nt":
-        bin_path = bin_path.with_suffix(".cmd")
-        content = "@echo off\necho Running fallback simulator app: {}\necho Hello from {}\n".format(appid, app_folder)
-    else:
-        content = "#!/usr/bin/env sh\necho \"Running fallback simulator app: {}\"\necho \"Hello from {}\"\n".format(appid, app_folder)
-    bin_path.write_text(content, encoding="utf-8")
-    if os.name != "nt":
-        bin_path.chmod(0o755)
-    return bin_path
 
 def parse_appid(app_folder: str) -> str:
     fam = ROOT / app_folder / "application.fam"
@@ -158,9 +140,11 @@ def parse_appid(app_folder: str) -> str:
 def detect_last_built_appid() -> str | None:
     outs = sorted([p for p in ROOT.glob("out_*") if p.is_dir()])
     for directory in reversed(outs):
-        candidate = directory / directory.name.replace("out_", "", 1)
-        if candidate.exists() and os.access(candidate, os.X_OK):
-            return candidate.name
+        appid = directory.name.replace("out_", "", 1)
+        candidate = directory / appid
+        candidate_cmd = candidate.with_suffix(".cmd")
+        if candidate.exists() or candidate_cmd.exists():
+            return appid
     return None
 
 
@@ -182,6 +166,32 @@ def ensure_unix_dependencies_tooling():
             )
 
 
+def build_fallback_binary(app_folder: str) -> Path:
+    appid = parse_appid(app_folder)
+    out_dir = ROOT / f"out_{appid}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    bin_path = out_dir / appid
+
+    if os.name == "nt":
+        bin_path = bin_path.with_suffix(".cmd")
+        content = (
+            "@echo off\n"
+            f"echo Running fallback simulator app: {appid}\n"
+            f"echo Hello from {app_folder}\n"
+        )
+    else:
+        content = (
+            "#!/usr/bin/env sh\n"
+            f"echo \"Running fallback simulator app: {appid}\"\n"
+            f"echo \"Hello from {app_folder}\"\n"
+        )
+
+    bin_path.write_text(content, encoding="utf-8")
+    if os.name != "nt":
+        bin_path.chmod(0o755)
+    return bin_path
+
+
 def cmd_deps(_args=None):
     console.rule("[bold cyan]Dependencies")
     if not has_real_toolchain():
@@ -194,27 +204,9 @@ def cmd_deps(_args=None):
     ensure_unix_dependencies_tooling()
 
     apt_pkgs = [
-        "build-essential",
-        "gcc",
-        "g++",
-        "make",
-        "pkg-config",
-        "jq",
-        "git",
-        "curl",
-        "ca-certificates",
-        "nodejs",
-        "npm",
-        "python3",
-        "python3-pip",
-        "python3-rich",
-        "libsdl2-dev",
-        "libsdl2-ttf-dev",
-        "libsdl2-image-dev",
-        "libsdl2-mixer-dev",
-        "libbsd-dev",
-        "gdb",
-        "x11-apps",
+        "build-essential", "gcc", "g++", "make", "pkg-config", "jq", "git", "curl", "ca-certificates",
+        "nodejs", "npm", "python3", "python3-pip", "python3-rich", "libsdl2-dev", "libsdl2-ttf-dev",
+        "libsdl2-image-dev", "libsdl2-mixer-dev", "libbsd-dev", "gdb", "x11-apps",
     ]
     missing = missing_apt_packages(apt_pkgs)
     if missing:
@@ -243,6 +235,8 @@ def cmd_build(args):
 
     appid = parse_appid(app_folder)
     out_bin = ROOT / f"out_{appid}" / appid
+    if not out_bin.exists() and out_bin.with_suffix(".cmd").exists():
+        out_bin = out_bin.with_suffix(".cmd")
     if not out_bin.exists():
         raise FileNotFoundError(f"Build finished but binary not found: {out_bin}")
     console.print(f"[bold green]Build complete[/bold green]: {out_bin}")
@@ -259,10 +253,6 @@ def resolve_appid(target: str | None) -> str:
     if path.is_dir() and (path / "application.fam").exists():
         return parse_appid(target)
 
-    out_bin = ROOT / f"out_{target}" / target
-    if out_bin.exists():
-        return target
-
     return target
 
 
@@ -271,16 +261,16 @@ def cmd_run(args):
     bin_path = ROOT / f"out_{appid}" / appid
     if os.name == "nt" and not bin_path.exists() and bin_path.with_suffix(".cmd").exists():
         bin_path = bin_path.with_suffix(".cmd")
+
     if not bin_path.exists() and args.target and (ROOT / args.target / "application.fam").exists():
-        build_fallback_binary(args.target)
-        bin_path = ROOT / f"out_{appid}" / appid
-        if os.name == "nt" and not bin_path.exists() and bin_path.with_suffix(".cmd").exists():
-            bin_path = bin_path.with_suffix(".cmd")
+        bin_path = build_fallback_binary(args.target)
+
     if not bin_path.exists():
         raise FileNotFoundError(f"Binary not found: {bin_path}")
+
     console.rule("[bold cyan]Run Simulator")
     console.print(f"[green]Launching:[/green] {bin_path}")
-    os.execv(str(bin_path), [str(bin_path)])
+    subprocess.run([str(bin_path)], check=True)
 
 
 def interactive_menu():
@@ -305,20 +295,24 @@ def interactive_menu():
                 Prompt.ask("Press Enter to continue")
             elif choice == "2":
                 app = Prompt.ask("App folder", default="example_hello_world").strip()
+
                 class Args:
                     pass
+
                 args = Args()
                 args.app = app
                 cmd_build(args)
                 Prompt.ask("Press Enter to continue")
             elif choice == "3":
                 target = Prompt.ask("App id or folder (empty=last build)", default="").strip() or None
+
                 class Args:
                     pass
+
                 args = Args()
                 args.target = target
                 cmd_run(args)
-                return
+                Prompt.ask("Press Enter to continue")
             elif choice == "4":
                 selected = Prompt.ask("Theme", choices=["dark", "light"], default=settings.get("theme", "dark"))
                 settings["theme"] = selected
@@ -334,7 +328,7 @@ def interactive_menu():
 
 
 def main():
-    initial_clone_cleanup()
+    clone_cleanup()
 
     if len(os.sys.argv) == 1:
         interactive_menu()
@@ -364,4 +358,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
