@@ -1,0 +1,11 @@
+# Zero_SIM local/runtime artifacts
+__pycache__/
+*.pyc
+.zero_sim_cleaned
+.zero_sim_settings.json
+
+# Build outputs
+out_*/
+
+# Dependencies
+node_modules/

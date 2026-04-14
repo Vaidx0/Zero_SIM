@@ -26,6 +26,19 @@ DEFAULT_SETTINGS = {"theme": "dark"}
 console = Console()
 
 
+def npm_command():
+    if os.name == "nt":
+        npm_cmd = shutil.which("npm.cmd")
+        if npm_cmd:
+            return [npm_cmd]
+    npm = shutil.which("npm")
+    if npm:
+        return [npm]
+    raise RuntimeError(
+        "npm is not available in PATH. Install Node.js and reopen your terminal."
+    )
+
+
 def load_settings():
     if not SETTINGS_FILE.exists():
         return dict(DEFAULT_SETTINGS)
@@ -81,13 +94,18 @@ def run_step(title, cmd, cwd=None, quiet=True, input_text=None):
             transient=True,
         ) as progress:
             task = progress.add_task(title, total=None)
-            completed = subprocess.run(
-                cmd,
-                cwd=cwd or ROOT,
-                input=input_text,
-                text=True,
-                capture_output=True,
-            )
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=cwd or ROOT,
+                    input=input_text,
+                    text=True,
+                    capture_output=True,
+                )
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    f"Command not found: {cmd[0]}. Install it and check your PATH."
+                ) from exc
             progress.update(task, completed=1)
         if completed.returncode != 0:
             output = (completed.stdout or "") + "\n" + (completed.stderr or "")
@@ -151,7 +169,7 @@ def cmd_deps(_args=None):
         )
 
     run_step("Updating git submodules", ["git", "submodule", "update", "--init", "--recursive"], quiet=True)
-    run_step("Installing npm packages", ["npm", "install"], quiet=True)
+    run_step("Installing npm packages", [*npm_command(), "install"], quiet=True)
     ensure_unix_dependencies_tooling()
 
     apt_pkgs = [
@@ -193,9 +211,13 @@ def cmd_build(args):
     app_path = ROOT / app_folder
     if not app_path.exists():
         raise FileNotFoundError(f"App folder not found: {app_path}")
+    if not (ROOT / "package.json").exists():
+        raise FileNotFoundError(
+            f"package.json not found in {ROOT}. Clone the full Zero_Sim repository before building apps."
+        )
 
     console.rule(f"[bold cyan]Build {app_folder}")
-    run_step("Compiling app", ["npm", "start"], input_text=f"{app_folder}\n", quiet=True)
+    run_step("Compiling app", [*npm_command(), "start"], input_text=f"{app_folder}\n", quiet=True)
 
     appid = parse_appid(app_folder)
     out_bin = ROOT / f"out_{appid}" / appid
@@ -209,7 +231,7 @@ def resolve_appid(target: str | None) -> str:
         auto = detect_last_built_appid()
         if auto:
             return auto
-        raise RuntimeError("No built app found. Run: python3 simulator.py build <app_folder>")
+        raise RuntimeError("No built app found. Run: python simulator.py build <app_folder>")
 
     path = ROOT / target
     if path.is_dir() and (path / "application.fam").exists():
@@ -304,8 +326,13 @@ def main():
     p_run.set_defaults(func=cmd_run)
 
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except Exception as exc:
+        console.print(Panel(str(exc), title="Error", border_style="red"))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
     main()
+

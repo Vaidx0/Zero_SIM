@@ -1,5 +1,7 @@
 # Zero_SIM Toolkit by Amau_Zero
 
+Website: [amauzero.info](https://amauzero.info)
+
 Clean workflow for Zero_SIM with:
 - dependency bootstrap
 - quiet app build (logs shown only on error)
@@ -12,6 +14,10 @@ Clean workflow for Zero_SIM with:
 - Python 3 (`python` or `py -3` on Windows)
 - Git
 - Node.js + npm
+
+## Screenshot
+
+![Zero_SIM screenshot](assets/image.png)
 
 ## Clone
 
@@ -31,7 +37,7 @@ You can also create your own app folder in the repository root and include an `a
 
 ## First Run Behavior
 
-On first launch, `simulator.py` performs an initial cleanup as requested:
+On first launch, `simulator.py` performs an initial cleanup in the cloned folder:
 - removes `assets/`
 - removes `LICENSE`
 - removes `.gitignore`
@@ -78,18 +84,9 @@ Menu options:
 - run simulator
 - settings (switch theme: dark/light)
 
-## Keyboard Controls (Zero_SIM)
-
-- Up: `Arrow Up`
-- Down: `Arrow Down`
-- Left: `Arrow Left`
-- Right: `Arrow Right`
-- OK: `Z`
-- Back: `X`
-
 ## Notes
 
-- The script now validates repo path resolution and avoids invalid-directory failures when the clone folder is moved.
+- If build fails with "Command not found", install Node.js and reopen the terminal.
 - Linux dependency tools (`dpkg`, `apt-get`, `sudo`) must run in WSL/Linux shell.
 - Build logs stay hidden unless a step fails.
 
