@@ -1,0 +1,27 @@
+{
+  "name": "zero_sim",
+  "version": "0.1.0",
+  "description": "A Flipper Zero simulator by Amau_Zero",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "bin": {
+    "zero-sim": "index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vaidx0/Zero_SIM.git"
+  },
+  "keywords": [
+    "flipper",
+    "zero",
+    "emulator"
+  ],
+  "author": "Amau_Zero",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Vaidx0/Zero_SIM/issues"
+  },
+  "homepage": "https://github.com/Vaidx0/Zero_SIM#readme"
+}
