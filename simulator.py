@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import subprocess
-import tkinter as tk
 from pathlib import Path
 
 from rich.console import Console
@@ -194,40 +193,25 @@ def build_fallback_binary(app_folder: str) -> Path:
 
 
 def launch_fallback_simulator_ui(appid: str):
+    try:
+        import tkinter as tk
+    except ModuleNotFoundError:
+        console.print("[yellow]tkinter is not installed. Install python3-tk for visual fallback mode.[/yellow]")
+        console.print(f"[cyan]Fallback app output:[/cyan] Running fallback simulator app: {appid}")
+        return
+
     root = tk.Tk()
     root.title(f"Zero_SIM - {appid}")
     root.geometry("460x260")
     root.configure(bg="#f28c28")
     root.resizable(False, False)
 
-    title = tk.Label(
-        root,
-        text="Zero_SIM Fallback",
-        bg="#f28c28",
-        fg="black",
-        font=("Arial", 18, "bold"),
-    )
+    title = tk.Label(root, text="Zero_SIM Fallback", bg="#f28c28", fg="black", font=("Arial", 18, "bold"))
     title.pack(pady=(24, 10))
-
-    app_label = tk.Label(
-        root,
-        text=f"App: {appid}",
-        bg="#f28c28",
-        fg="black",
-        font=("Arial", 13),
-    )
+    app_label = tk.Label(root, text=f"App: {appid}", bg="#f28c28", fg="black", font=("Arial", 13))
     app_label.pack(pady=4)
-
-    info_label = tk.Label(
-        root,
-        text="Real Zero simulator files are missing.\nThis is fallback visual mode.",
-        bg="#f28c28",
-        fg="black",
-        font=("Arial", 11),
-        justify="center",
-    )
+    info_label = tk.Label(root, text="Real Zero simulator files are missing.\nThis is fallback visual mode.", bg="#f28c28", fg="black", font=("Arial", 11), justify="center")
     info_label.pack(pady=10)
-
     close_button = tk.Button(root, text="Close", command=root.destroy)
     close_button.pack(pady=12)
     root.mainloop()

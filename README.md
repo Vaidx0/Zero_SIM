@@ -21,7 +21,14 @@ Clean workflow for Zero_SIM with:
 
 ## Clone (WSL first)
 
-```bash\n# Open WSL terminal first\ngit clone https://github.com/Vaidx0/Zero_SIM.git
+```bash
+# 1) Open WSL terminal first
+# 2) Create a folder where Zero_SIM will be installed
+mkdir -p ~/zero_workspace
+cd ~/zero_workspace
+
+# 3) Clone and enter the repository
+git clone https://github.com/Vaidx0/Zero_SIM.git
 cd Zero_SIM
 ```
 
